@@ -2,6 +2,7 @@ import os
 import json
 import pickle
 import heapq
+import warnings
 from posting import Posting
 from porter2stemmer import Porter2Stemmer
 from nltk.tokenize import RegexpTokenizer
@@ -29,9 +30,11 @@ def remove_fragment(url):
     'Removes the fragment part of a URL'
     return url.split('#')[0]
 
+
 def process_index_line(line):
     'Returns tuple of token and list of postings from a line in the index file'
     return line.split(':')[0], line.split(':')[1]
+
 
 def dump_indexes(file_path, inverted_index):
     'Put inverted index on disk and merge with existing index'
@@ -42,9 +45,20 @@ def dump_indexes(file_path, inverted_index):
             f.write(','.join(postings_list))
             f.write('\n')
 
-#TO DO, NEED TO MAINTAIN SORT ORDER
-#BUILD LIST OF POSTINGS, SORT IT, THEN WRITE TO FILE
-#DOES NOT NEED TO SORT EVERYTHING, JUST MERGE IN CORRECT ORDER
+
+def load_pickle_file(file_path):
+    'Loads the pickle file back to memoryfrom disk'
+    with open(file_path, 'rb') as f:
+        return pickle.load(f)
+
+
+def get_postings(file_path, token, token_positions):
+    'Returns the postings list for a token from the index file'
+    with open(file_path, 'r') as f:
+        f.seek(token_positions[token])
+        line = f.readline().strip()
+        return process_index_line(line)[1]
+
 
 def merge_indexes(directory):
     'Merges all indexes in the directory into a single index file'
@@ -68,6 +82,9 @@ def merge_indexes(directory):
 
     #Open the output file
     with open('merged_index.txt', 'w') as output_file:
+        #Dictionary to keep track of the position of each token in the output file
+        token_positions = {}
+        current_position = 1
         #While there are still lines in the heap
         while heap:
             #Pop the next posting list off the heap and write it to the output file
@@ -75,13 +92,16 @@ def merge_indexes(directory):
 
             #Add to current token if the same
             if next_token == current_token:
-                output_file.write(f',{postings}')
+                line = f',{postings}'
             #Otherwise, write a new line with the token and postings
             else:
-                output_file.write('\n')
+                line = f'\n{next_token}:{postings}'
                 current_token = next_token
-                output_file.write(f'{current_token}:')
-                output_file.write(postings)
+                current_position += 1
+                token_positions[next_token] = current_position
+
+            current_position += len(line)
+            output_file.write(line)
 
             #Add the next line from that file to the heap
             next_line = files[i].readline().strip()
@@ -92,6 +112,9 @@ def merge_indexes(directory):
     #Close all the input files
     for file in files:
         file.close()
+
+    with open(f'data/token_positions.pkl', 'wb') as f:
+        pickle.dump(token_positions, f)  #Dump the token positions dictionary to disk
 
 
 def build_index(folder_path, threshold):
@@ -106,9 +129,16 @@ def build_index(folder_path, threshold):
     doc_ids = []
 
     for page in process_json_files(folder_path):
-        page_counter += 1
-        tokens = tokenizer.tokenize(get_text_content(page))
+        
+        #Don't process non html
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            try:
+                tokens = tokenizer.tokenize(get_text_content(page))
+            except:
+                continue
 
+        page_counter += 1
         url = remove_fragment(page['url'])
         doc_ids.append(url)
 
@@ -129,15 +159,12 @@ def build_index(folder_path, threshold):
             dump_indexes(f'indexes/index_{page_counter // threshold}.txt', inverted_index)
             inverted_index.clear()
 
-    with open(f'doc_ids.pkl', 'wb') as f:
+    with open(f'data/doc_ids.pkl', 'wb') as f:
         pickle.dump(doc_ids, f)  #Dump the doc_ids list to disk
 
     #Dump the remaining indexes
     if inverted_index:
         dump_indexes(f'indexes/index_{page_counter // threshold + 1}.txt', inverted_index)
-
-    #Perform merging
-    #merge_indexes('indexes')
 
     #ANALYTICS
     print(f'Total pages: {page_counter}')
@@ -145,7 +172,8 @@ def build_index(folder_path, threshold):
 
 
 if __name__ == '__main__':
-    build_index('developer/DEV/mailman_ics_uci_edu', 10)
-    #build_index('developer/DEV', 10000)
+    build_index('developer/DEV', 10000)
     merge_indexes('indexes')
+
+
 
