@@ -1,11 +1,13 @@
 import os
 import json
-import hashlib
 import pickle
+import heapq
+from posting import Posting
 from porter2stemmer import Porter2Stemmer
 from nltk.tokenize import RegexpTokenizer
 from bs4 import BeautifulSoup
 from collections import defaultdict
+from operator import attrgetter
 
 def process_json_files(folder_path):
     'Yields data of each JSON file in folder_path'
@@ -23,73 +25,97 @@ def get_text_content(page):
     return soup.get_text()
 
 
-def tokenize(text_content):
-    'Tokenize the text content and return a list of tokens'
-    tokens = []
-   
-    #Build token and process token when encounter non alphanum char
-    token = ""
-    for char in text_content:
-        char = char.lower()
-        try:
-            if (ord(char)>=97 and ord(char)<=122) or (ord(char)>=48 and ord(char)<=57) or ord(char)==39:
-                token += char
-            elif len(token)>1:
-                tokens.append(token)
-                token = ""
-        except TypeError:
-            continue 
-    if len(token)>1:
-        tokens.append(token)
-
-    return tokens
-
 def remove_fragment(url):
     'Removes the fragment part of a URL'
     return url.split('#')[0]
-    
-def default_factory():
-    return defaultdict(int)
 
-def build_partial_indexes(folder_path, threshold):
+
+def dump_indexes(file_path, inverted_index):
+    'Put inverted index on disk and merge with existing index'
+    with open(file_path, 'w') as f:
+        for token, postings in sorted(inverted_index.items()):
+            f.write(f'{token}:')
+            postings_list = [f'({posting.doc_id};{posting.term_freq})' for posting in sorted(postings, key=attrgetter('doc_id'))]
+            f.write(','.join(postings_list))
+            f.write('\n')
+
+
+def merge_indexes(directory):
+    #Get all index files in the directory
+    index_files = [f for f in os.listdir(directory) if f.endswith('.txt')]
+
+    # Open all files and add the first line of each to a heap
+    heap = []
+    files = [open(os.path.join(directory, f)) for f in index_files]
+    for file in files:
+        line = file.readline().strip()
+        if line:
+            heap.append((line, file))
+
+    heapq.heapify(heap)
+
+    # Open the output file
+    with open('merged_index.txt', 'w') as output_file:
+        # While there are still lines in the heap
+        while heap:
+            # Pop the smallest line off the heap and write it to the output file
+            smallest_line, file = heapq.heappop(heap)
+            output_file.write(smallest_line + '\n')
+
+            # Add the next line from that file to the heap
+            next_line = file.readline().strip()
+            if next_line:
+                heapq.heappush(heap, (next_line, file))
+
+    # Close all the input files
+    for file in files:
+        file.close()
+
+
+def build_index(folder_path, threshold):
     'Builds partial indexes and saves them to disk'
-    inverted_index = defaultdict(default_factory)
-    file_counter = 0
+    inverted_index = defaultdict(list)
     page_counter = 0
 
     tokenizer = RegexpTokenizer(r'[a-zA-Z0-9]+')  #Matches any sequence of alphanum characters
     stemmer = Porter2Stemmer()
 
     universal_tokens = set()
-    url_dict = {} #Stores hashes of URLs to save disk space
+    doc_ids = []
 
     for page in process_json_files(folder_path):
         page_counter += 1
         tokens = tokenizer.tokenize(get_text_content(page))
 
         url = remove_fragment(page['url'])
-        url_hash = hashlib.md5(url.encode()).hexdigest() #Hash URL to save disk space
-        url_dict[url_hash] = url #Store URL hash based on doc ID
+        doc_ids.append(url)
 
+        freqs = defaultdict(int)
+
+        #Process each token in the page
         for token in tokens:
             token = token.lower()
-            #universal_tokens.add(token)
             stemmed_token = stemmer.stem(token)
             universal_tokens.add(stemmed_token)
-            inverted_index[stemmed_token][url_hash] += 1
+            freqs[stemmed_token] += 1
 
+        for token, freq in freqs.items():
+            inverted_index[token].append(Posting(page_counter - 1, freq)) #Add to inverted index
+
+        #Dump indexes
         if page_counter % threshold == 0:
-            with open(f'indexes/partial_index_{file_counter}.pkl', 'wb') as f:
-                pickle.dump(inverted_index, f) #Dump the inverted index
-            inverted_index.clear() #Clear the inverted index
-            url_dict.clear()  #Clear the URL dictionary
-            file_counter += 1
+            dump_indexes(f'indexes/index_{page_counter // threshold}.txt', inverted_index)
+            inverted_index.clear()
 
-    if inverted_index or url_dict:
-        with open(f'indexes/partial_index_{file_counter}.pkl', 'wb') as f:
-            pickle.dump(inverted_index, f) #Dump the inverted index
-        with open(f'url_hashes.pkl', 'wb') as f:
-            pickle.dump(url_dict, f)  #Dump the URL dictionary
+    with open(f'doc_ids.pkl', 'wb') as f:
+        pickle.dump(doc_ids, f)  #Dump the doc_ids list to disk
+
+    #Dump the remaining indexes
+    if inverted_index:
+        dump_indexes(f'indexes/index_{page_counter // threshold + 1}.txt', inverted_index)
+
+    #Perform merging
+    merge_indexes('indexes')
 
     #ANALYTICS
     print(f'Total pages: {page_counter}')
@@ -97,4 +123,5 @@ def build_partial_indexes(folder_path, threshold):
 
 
 if __name__ == '__main__':
-    build_partial_indexes('developer/DEV', 15000)
+    #build_index('developer/DEV/aiclub_ics_uci_edu', 15000)
+    build_index('developer/DEV/aiclub_ics_uci_edu', 1)
