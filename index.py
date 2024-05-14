@@ -31,7 +31,7 @@ def remove_fragment(url):
 
 def process_index_line(line):
     'Returns tuple of token and list of postings from a line in the index file'
-    return line.split(':')[0], line.split(':')[1]#.split(',')
+    return line.split(':')[0], line.split(':')[1]
 
 def dump_indexes(file_path, inverted_index):
     'Put inverted index on disk and merge with existing index'
@@ -49,7 +49,10 @@ def dump_indexes(file_path, inverted_index):
 def merge_indexes(directory):
     'Merges all indexes in the directory into a single index file'
     #Get all index files in the directory
-    index_files = [f for f in os.listdir(directory) if f.endswith('.txt')]
+    index_files = ([f for f in os.listdir(directory) if f.endswith('.txt')])
+
+    #Sort the index files by their number
+    index_files = sorted(index_files, key=lambda f: int(f.split('_')[1].split('.')[0]))
 
     #Open all files and add the first line of each to a heap
     heap = []
@@ -58,21 +61,22 @@ def merge_indexes(directory):
         line = file.readline().strip()
         if line:
             processed = process_index_line(line)
-            heap.append((processed[0], processed[1], i))
+            heap.append((processed[0], i, processed[1]))
 
     heapq.heapify(heap)
     current_token = '@'
 
-    # Open the output file
+    #Open the output file
     with open('merged_index.txt', 'w') as output_file:
         #While there are still lines in the heap
         while heap:
-            #Pop the smallest line off the heap and write it to the output file
-    
-            next_token, postings, i = heapq.heappop(heap)
+            #Pop the next posting list off the heap and write it to the output file
+            next_token, i, postings = heapq.heappop(heap)
 
+            #Add to current token if the same
             if next_token == current_token:
                 output_file.write(f',{postings}')
+            #Otherwise, write a new line with the token and postings
             else:
                 output_file.write('\n')
                 current_token = next_token
@@ -83,7 +87,7 @@ def merge_indexes(directory):
             next_line = files[i].readline().strip()
             if next_line:
                 processed = process_index_line(next_line)
-                heapq.heappush(heap, (processed[0], processed[1], i))
+                heapq.heappush(heap, (processed[0], i, processed[1]))
 
     #Close all the input files
     for file in files:
