@@ -29,45 +29,63 @@ def remove_fragment(url):
     'Removes the fragment part of a URL'
     return url.split('#')[0]
 
+def process_index_line(line):
+    'Returns tuple of token and list of postings from a line in the index file'
+    return line.split(':')[0], line.split(':')[1]#.split(',')
 
 def dump_indexes(file_path, inverted_index):
     'Put inverted index on disk and merge with existing index'
     with open(file_path, 'w') as f:
         for token, postings in sorted(inverted_index.items()):
             f.write(f'{token}:')
-            postings_list = [f'({posting.doc_id};{posting.term_freq})' for posting in sorted(postings, key=attrgetter('doc_id'))]
+            postings_list = [f'{posting.doc_id};{posting.term_freq}' for posting in sorted(postings, key=attrgetter('doc_id'))]
             f.write(','.join(postings_list))
             f.write('\n')
 
+#TO DO, NEED TO MAINTAIN SORT ORDER
+#BUILD LIST OF POSTINGS, SORT IT, THEN WRITE TO FILE
+#DOES NOT NEED TO SORT EVERYTHING, JUST MERGE IN CORRECT ORDER
 
 def merge_indexes(directory):
+    'Merges all indexes in the directory into a single index file'
     #Get all index files in the directory
     index_files = [f for f in os.listdir(directory) if f.endswith('.txt')]
 
-    # Open all files and add the first line of each to a heap
+    #Open all files and add the first line of each to a heap
     heap = []
     files = [open(os.path.join(directory, f)) for f in index_files]
-    for file in files:
+    for i, file in enumerate(files):
         line = file.readline().strip()
         if line:
-            heap.append((line, file))
+            processed = process_index_line(line)
+            heap.append((processed[0], processed[1], i))
 
     heapq.heapify(heap)
+    current_token = '@'
 
     # Open the output file
     with open('merged_index.txt', 'w') as output_file:
-        # While there are still lines in the heap
+        #While there are still lines in the heap
         while heap:
-            # Pop the smallest line off the heap and write it to the output file
-            smallest_line, file = heapq.heappop(heap)
-            output_file.write(smallest_line + '\n')
+            #Pop the smallest line off the heap and write it to the output file
+    
+            next_token, postings, i = heapq.heappop(heap)
 
-            # Add the next line from that file to the heap
-            next_line = file.readline().strip()
+            if next_token == current_token:
+                output_file.write(f',{postings}')
+            else:
+                output_file.write('\n')
+                current_token = next_token
+                output_file.write(f'{current_token}:')
+                output_file.write(postings)
+
+            #Add the next line from that file to the heap
+            next_line = files[i].readline().strip()
             if next_line:
-                heapq.heappush(heap, (next_line, file))
+                processed = process_index_line(next_line)
+                heapq.heappush(heap, (processed[0], processed[1], i))
 
-    # Close all the input files
+    #Close all the input files
     for file in files:
         file.close()
 
@@ -115,7 +133,7 @@ def build_index(folder_path, threshold):
         dump_indexes(f'indexes/index_{page_counter // threshold + 1}.txt', inverted_index)
 
     #Perform merging
-    merge_indexes('indexes')
+    #merge_indexes('indexes')
 
     #ANALYTICS
     print(f'Total pages: {page_counter}')
@@ -123,5 +141,7 @@ def build_index(folder_path, threshold):
 
 
 if __name__ == '__main__':
-    #build_index('developer/DEV/aiclub_ics_uci_edu', 15000)
-    build_index('developer/DEV/aiclub_ics_uci_edu', 1)
+    build_index('developer/DEV/mailman_ics_uci_edu', 10)
+    #build_index('developer/DEV', 10000)
+    merge_indexes('indexes')
+
