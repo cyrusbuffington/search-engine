@@ -180,6 +180,10 @@ def build_index(folder_path, threshold):
     print(f'Total words: {len(universal_tokens)}')
 
 
-if __name__ == '__main__':
+def main():
     build_index('developer/DEV', 10000)
     merge_indexes('indexes')
+
+
+if __name__ == '__main__':
+    main()

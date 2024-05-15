@@ -79,14 +79,16 @@ def get_query(index_path, token_positions, doc_ids):
     for i, posting in enumerate(postings[:10]):
         print(f'{i + 1} - {posting}')
 
-if __name__ == '__main__':
+def main():
     #Load the index and doc_ids
     token_positions = index.load_pickle_file('data/token_positions.pkl')
     doc_ids = index.load_pickle_file('data/doc_ids.pkl')
 
     get_query('merged_index.txt', token_positions, doc_ids)
 
-    
+
+if __name__ == '__main__':
+    main()
     
 
 
