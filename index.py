@@ -23,6 +23,8 @@ def process_json_files(folder_path):
 def get_text_content(page):
     'Returns the text content of a JSON page object'
     soup = BeautifulSoup(page['content'], 'lxml')
+    print(page['content'])
+    print(soup.get_text())
     return soup.get_text()
 
 
@@ -54,10 +56,14 @@ def load_pickle_file(file_path):
 
 def get_postings(file_path, token, token_positions):
     'Returns the postings list for a token from the index file'
+    if token not in token_positions:
+        return []
     with open(file_path, 'r') as f:
         f.seek(token_positions[token])
         line = f.readline().strip()
-        return process_index_line(line)[1]
+        postings = process_index_line(line)[1].split(',')
+        postings = [Posting(int(posting.split(';')[0]), int(posting.split(';')[1]), doc_freq=len(postings)) for posting in postings]
+        return postings
 
 
 def merge_indexes(directory):
@@ -126,6 +132,7 @@ def build_index(folder_path, threshold):
     stemmer = Porter2Stemmer()
 
     universal_tokens = set()
+    urls_processed = set()
     doc_ids = []
 
     for page in process_json_files(folder_path):
@@ -140,7 +147,11 @@ def build_index(folder_path, threshold):
 
         page_counter += 1
         url = remove_fragment(page['url'])
+        if url in urls_processed:
+            continue
+        page_counter += 1
         doc_ids.append(url)
+        urls_processed.add(url)
 
         freqs = defaultdict(int)
 
@@ -174,6 +185,3 @@ def build_index(folder_path, threshold):
 if __name__ == '__main__':
     build_index('developer/DEV', 10000)
     merge_indexes('indexes')
-
-
-
