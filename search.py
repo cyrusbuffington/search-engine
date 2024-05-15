@@ -49,6 +49,8 @@ def tfidf(term_freq, doc_freq, total_docs):
 
 def search(query, index_path, token_positions, doc_ids):
     'Searches the index for the given query'
+    if not query:
+        return []
     start_time = time.time()
     tokenizer = RegexpTokenizer(r'[a-zA-Z0-9]+')  #Matches any sequence of alphanum characters
     stemmer = Porter2Stemmer()
