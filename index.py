@@ -23,8 +23,6 @@ def process_json_files(folder_path):
 def get_text_content(page):
     'Returns the text content of a JSON page object'
     soup = BeautifulSoup(page['content'], 'lxml')
-    print(page['content'])
-    print(soup.get_text())
     return soup.get_text()
 
 
