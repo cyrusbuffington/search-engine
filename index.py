@@ -183,5 +183,5 @@ def build_index(folder_path, threshold):
 
 
 if __name__ == '__main__':
-    build_index('C:\Users\cyrus\OneDrive\Desktop\developer\DEV', 10000)
+    build_index('developer/DEV', 10000)
     merge_indexes('indexes')
