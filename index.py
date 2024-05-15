@@ -135,7 +135,7 @@ def build_index(folder_path, threshold):
 
     for page in process_json_files(folder_path):
         
-        #Don't process non html
+        #Don't process non html or broken html
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             try:
@@ -143,7 +143,6 @@ def build_index(folder_path, threshold):
             except:
                 continue
 
-        page_counter += 1
         url = remove_fragment(page['url'])
         if url in urls_processed:
             continue

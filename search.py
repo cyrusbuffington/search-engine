@@ -76,7 +76,7 @@ def get_query(index_path, token_positions, doc_ids):
     'Gets a query from the user and prints search results'
     query =  input('Enter a search query: ')
     postings = search(query, index_path, token_positions, doc_ids)
-    for i, posting in enumerate(postings[:10]):
+    for i, posting in enumerate(postings[:20]):
         print(f'{i + 1} - {posting}')
 
 def main():
