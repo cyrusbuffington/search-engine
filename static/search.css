@@ -1,0 +1,29 @@
+html, body {
+    height: 100%;
+    overflow: auto;
+    margin: 0;
+    padding: 0;
+}
+h3 {
+    font-size: 24px;
+    font-weight: bold;
+    padding: 20px;
+
+}
+.form-inline {
+    width: 50%; 
+    padding-top: 2rem;
+}
+
+.form-control {
+    width: 75%!important;  
+    height: 50px; 
+    font-size: 24px;  
+}
+
+.btn {
+    width: 20%!important; 
+    height: 40px; 
+    font-size: 24px; 
+    font-style: bold; 
+}
