@@ -23,7 +23,7 @@ def process_json_files(folder_path):
 def get_page_tokens(page):
     'Returns the text content of a JSON page object'
     tag_weights = {'title': 10, 'h1': 7, 'h2': 6, 'h3': 5, 'h4': 4, 'h5': 3, 'h6': 2, 'p': 1,
-                    'a': 1, 'li': 1}
+                    'a': 1, 'li': 1, 'i':3, 'b':4, 'strong': 4, 'em': 4, 'sub': 1}
     
     tokenizer = RegexpTokenizer(r'[a-zA-Z0-9]+')  #Matches any sequence of alphanum characters
     stemmer = Porter2Stemmer()
