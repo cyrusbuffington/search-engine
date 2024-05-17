@@ -70,14 +70,15 @@ def search(query, index_path, token_positions, doc_ids):
     postings = rank_documents(postings, len(doc_ids))
 
     end_time = time.time()
-    print(f'Retreived results in {end_time - start_time} seconds')
-    return [doc_ids[posting] for posting in postings]
+    time_taken = end_time - start_time
+    print(f'Retreived results in {time_taken} seconds')
+    return ([doc_ids[posting] for posting in postings], time_taken)
 
 
 def get_query(index_path, token_positions, doc_ids):
     'Gets a query from the user and prints search results'
     query =  input('Enter a search query: ')
-    postings = search(query, index_path, token_positions, doc_ids)
+    postings = search(query, index_path, token_positions, doc_ids)[0]
     for i, posting in enumerate(postings[:20]):
         print(f'{i + 1} - {posting}')
 

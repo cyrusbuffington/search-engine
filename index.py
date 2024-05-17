@@ -20,10 +20,26 @@ def process_json_files(folder_path):
                     yield data
 
 
-def get_text_content(page):
+def get_page_tokens(page):
     'Returns the text content of a JSON page object'
+    tag_weights = {'title': 10, 'h1': 7, 'h2': 6, 'h3': 5, 'h4': 4, 'h5': 3, 'h6': 2, 'p': 1,
+                    'a': 1, 'li': 1}
+    
+    tokenizer = RegexpTokenizer(r'[a-zA-Z0-9]+')  #Matches any sequence of alphanum characters
+    stemmer = Porter2Stemmer()
+    freqs = defaultdict(int)
+
     soup = BeautifulSoup(page['content'], 'lxml')
-    return soup.get_text()
+
+    for tag in soup.find_all(tag_weights.keys()):
+        tokens = tokenizer.tokenize(tag.get_text())
+        for token in tokens:
+            token = token.lower()
+            stemmed_token = stemmer.stem(token)
+            freqs[stemmed_token] += tag_weights[tag.name]
+
+    return freqs
+
 
 
 def remove_fragment(url):
@@ -123,26 +139,25 @@ def merge_indexes(directory):
 
 def build_index(folder_path, threshold):
     'Builds partial indexes and saves them to disk'
+    print("Initializing index building...")
     inverted_index = defaultdict(list)
     page_counter = 0
-
-    tokenizer = RegexpTokenizer(r'[a-zA-Z0-9]+')  #Matches any sequence of alphanum characters
-    stemmer = Porter2Stemmer()
 
     universal_tokens = set()
     urls_processed = set()
     doc_ids = []
 
     for page in process_json_files(folder_path):
+        freqs = defaultdict(int)
         
         #Don't process non html or broken html
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             try:
-                tokens = tokenizer.tokenize(get_text_content(page))
+                freqs = get_page_tokens(page)
             except:
                 continue
-
+        
         url = remove_fragment(page['url'])
         if url in urls_processed:
             continue
@@ -150,20 +165,14 @@ def build_index(folder_path, threshold):
         doc_ids.append(url)
         urls_processed.add(url)
 
-        freqs = defaultdict(int)
-
-        #Process each token in the page
-        for token in tokens:
-            token = token.lower()
-            stemmed_token = stemmer.stem(token)
-            universal_tokens.add(stemmed_token)
-            freqs[stemmed_token] += 1
 
         for token, freq in freqs.items():
             inverted_index[token].append(Posting(page_counter - 1, freq)) #Add to inverted index
+            universal_tokens.add(token)
 
         #Dump indexes
         if page_counter % threshold == 0:
+            print('Dumping indexes... - ', page_counter // threshold)
             dump_indexes(f'indexes/index_{page_counter // threshold}.txt', inverted_index)
             inverted_index.clear()
 
@@ -172,15 +181,17 @@ def build_index(folder_path, threshold):
 
     #Dump the remaining indexes
     if inverted_index:
+        print('Dumping indexes... - ', page_counter // threshold + 1)
         dump_indexes(f'indexes/index_{page_counter // threshold + 1}.txt', inverted_index)
 
+    print('Index building complete!')
     #ANALYTICS
     print(f'Total pages: {page_counter}')
     print(f'Total words: {len(universal_tokens)}')
 
 
 def main():
-    build_index('developer/DEV', 10000)
+    build_index('developer/DEV', 5000)
     merge_indexes('indexes')
 
 

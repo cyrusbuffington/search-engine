@@ -12,15 +12,18 @@ def gui_search():
 
     #Get query from text box
     query = request.args.get('query')
+    time_elapsed = 0
+    result_count = 0
 
     postings = []
     if query:
-        # Perform the search and return the results
-        postings = search.search(query, 'merged_index.txt', token_positions, doc_ids)[:10]
+        #Perform the search and return the results
+        postings, time_elapsed = search.search(query, 'merged_index.txt', token_positions, doc_ids)
+        result_count = len(postings)
+        time_elapsed = round(time_elapsed, 8)
 
     #Show the search form and the results (if any)
-    return render_template('search.html', search_results=postings, query=query)
+    return render_template('search.html', search_results=postings, query=query, time_elapsed=time_elapsed, result_count=result_count)
 
-# main driver function
 if __name__ == '__main__':
     app.run()
