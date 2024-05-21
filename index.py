@@ -9,6 +9,7 @@ from nltk.tokenize import RegexpTokenizer
 from bs4 import BeautifulSoup
 from collections import defaultdict
 from operator import attrgetter
+from hashlib import sha256
 
 def process_json_files(folder_path):
     'Yields data of each JSON file in folder_path'
@@ -20,7 +21,7 @@ def process_json_files(folder_path):
                     yield data
 
 
-def get_page_tokens(page):
+def get_page_tokens(page, content_hash):
     'Returns the text content of a JSON page object'
     tag_weights = {'title': 10, 'h1': 7, 'h2': 6, 'h3': 5, 'h4': 4, 'h5': 3, 'h6': 2, 'p': 1,
                     'a': 1, 'li': 1, 'i':3, 'b':4, 'strong': 4, 'em': 4, 'sub': 1}
@@ -30,13 +31,26 @@ def get_page_tokens(page):
     freqs = defaultdict(int)
 
     soup = BeautifulSoup(page['content'], 'lxml')
+    content = ""
 
     for tag in soup.find_all(tag_weights.keys()):
-        tokens = tokenizer.tokenize(tag.get_text())
+        tag_content = tag.get_text()
+        #Tokenize the tag content
+        tokens = tokenizer.tokenize(tag_content)
+        #Add the tag content to the page content
+        content += tag_content
         for token in tokens:
             token = token.lower()
             stemmed_token = stemmer.stem(token)
             freqs[stemmed_token] += tag_weights[tag.name]
+
+    #Hash the content to check for duplicates
+    content = sha256(content.encode()).hexdigest()
+
+    if content in content_hash:
+        print('Duplicate content detected')
+        raise ValueError('Duplicate content')
+    content_hash.add(content)
 
     return freqs
 
@@ -136,6 +150,8 @@ def merge_indexes(directory):
     with open(f'data/token_positions.pkl', 'wb') as f:
         pickle.dump(token_positions, f)  #Dump the token positions dictionary to disk
 
+def page_rank():
+    pass
 
 def build_index(folder_path, threshold):
     'Builds partial indexes and saves them to disk'
@@ -143,24 +159,27 @@ def build_index(folder_path, threshold):
     inverted_index = defaultdict(list)
     page_counter = 0
 
+    content_hash = set()
     universal_tokens = set()
     urls_processed = set()
     doc_ids = []
 
+
     for page in process_json_files(folder_path):
         freqs = defaultdict(int)
-        
-        #Don't process non html or broken html
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            try:
-                freqs = get_page_tokens(page)
-            except:
-                continue
-        
+
         url = remove_fragment(page['url'])
         if url in urls_processed:
             continue
+        
+        #Don't process non html or broken html or duplicate content
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            try:
+                freqs = get_page_tokens(page, content_hash)
+            except:
+                continue
+        
         page_counter += 1
         doc_ids.append(url)
         urls_processed.add(url)
