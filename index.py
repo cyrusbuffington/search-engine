@@ -152,8 +152,6 @@ def merge_indexes(directory):
     with open(f'data/token_positions.pkl', 'wb') as f:
         pickle.dump(token_positions, f)  #Dump the token positions dictionary to disk
 
-def page_rank():
-    pass
 
 def build_index(folder_path, threshold):
     'Builds partial indexes and saves them to disk'

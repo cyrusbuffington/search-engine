@@ -1,11 +1,13 @@
 import index
 import time
 import math
+import heapq
 
 from collections import defaultdict
 from posting import Posting
 from porter2stemmer import Porter2Stemmer
 from nltk.tokenize import RegexpTokenizer
+
 
 
 def default_factory():
@@ -46,9 +48,28 @@ def make_doc_vectors_and_tdif(postings, total_docs):
     
     return doc_vectors, doc_tfidfs
 
-def score(doc_cos, doc_tfidfs, beta=0.15):
+def heap_selection(doc_vectors, query_vector, k=125):
+    'Selects the top k documents using a heap'
+    heap = []
+    for doc_id, doc_vector in doc_vectors.items():
+        cos_sim = 0
+        for token in query_vector:
+            if token in doc_vector:
+                cos_sim += (doc_vector[token] * query_vector[token])
+        if len(heap) < k:
+            heapq.heappush(heap, (cos_sim, doc_id))
+        elif cos_sim > heap[0][0]:
+            heapq.heappushpop(heap, (cos_sim, doc_id))
+
+    doc_cos = defaultdict(float)
+    for i in range(len(heap)):
+        doc_cos[heap[i][1]] = heap[i][0]
+    return doc_cos
+
+
+def score(doc_cos, doc_tfidfs, beta=.15):
     'Scores the documents based on the cosine similarity and tdif'
-    doc_tfiifs = normalize_tfidfs(doc_tfidfs)
+    doc_tfidfs = normalize_tfidfs(doc_tfidfs)
     scores = defaultdict(float)
     for doc_id in doc_cos:
         scores[doc_id] = (beta * doc_tfidfs[doc_id]) + ((1 - beta) * doc_cos[doc_id])
@@ -92,19 +113,15 @@ def search(query, index_path, token_positions, doc_ids):
         postings[token] = index.get_postings(index_path, token, token_positions)
 
     doc_vectors, doc_tfidfs = make_doc_vectors_and_tdif(postings, len(doc_ids))
-    
+
+
     #Calculate the cosine similarity between the query and the documents
-    doc_cos = defaultdict(float)
-    for token in query_vector:
-        for doc_id, doc_vector in doc_vectors.items():
-            if token in doc_vector:
-                doc_cos[doc_id] += (query_vector[token] * doc_vector[token])
+    doc_cos = heap_selection(doc_vectors, query_vector)
 
     scores = score(doc_cos, doc_tfidfs)
 
     #Rank postings
     ranked_docs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-
 
     end_time = time.time()
     time_taken = end_time - start_time
