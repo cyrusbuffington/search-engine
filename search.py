@@ -16,6 +16,9 @@ def tfidf(term_freq, doc_freq, total_docs):
     return (1 + math.log(term_freq)) * math.log(total_docs / (doc_freq + 1))
 
 def normalize_tdif(doc_tdifs):
+    if not doc_tdifs:
+        return doc_tdifs
+    
     min_tdif = min(doc_tdifs.values())
     max_tdif = max(doc_tdifs.values())
     for doc_id in doc_tdifs:
@@ -97,18 +100,13 @@ def search(query, index_path, token_positions, doc_ids):
     scores = score(doc_cos, doc_tdifs)
 
     #Rank postings
-    postings = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    ranked_docs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
 
-    #Remove all documents with a score of 1
-
-    #THIS IS THE ISSUE. SOME DOCUMENTS HAVE A SCORE OF 1 THAT SHOULDNT BE HAVING A SCORE OF 1.
-    #FIND PATTERN WITH SCORE OF 1 AND FIX
-    #postings = [(doc_id, score) for doc_id, score in postings if score == 1]
 
     end_time = time.time()
     time_taken = end_time - start_time
     print(f'Retreived results in {time_taken} seconds')
-    return ([(doc_ids[posting[0]]) for posting in postings], time_taken)
+    return ([(doc_ids[ranked_docs[0]]) for doc in ranked_docs], time_taken)
 
 
 def get_query(index_path, token_positions, doc_ids):
