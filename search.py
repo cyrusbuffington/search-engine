@@ -53,14 +53,17 @@ def heap_selection(doc_vectors, query_vector, k=125):
     heap = []
     for doc_id, doc_vector in doc_vectors.items():
         cos_sim = 0
+        #Get the cosine similarity between the query and the document
         for token in query_vector:
             if token in doc_vector:
                 cos_sim += (doc_vector[token] * query_vector[token])
+        #Only add the document to the heap if it has a higher cosine similarity than the smallest value in the heap
         if len(heap) < k:
             heapq.heappush(heap, (cos_sim, doc_id))
         elif cos_sim > heap[0][0]:
             heapq.heappushpop(heap, (cos_sim, doc_id))
 
+    #Convert the heap to a dictionary for easier access
     doc_cos = defaultdict(float)
     for i in range(len(heap)):
         doc_cos[heap[i][1]] = heap[i][0]
@@ -71,6 +74,7 @@ def score(doc_cos, doc_tfidfs, beta=.15):
     'Scores the documents based on the cosine similarity and tdif'
     doc_tfidfs = normalize_tfidfs(doc_tfidfs)
     scores = defaultdict(float)
+    #Compute ranking function for each doc
     for doc_id in doc_cos:
         scores[doc_id] = (beta * doc_tfidfs[doc_id]) + ((1 - beta) * doc_cos[doc_id])
     
@@ -112,12 +116,13 @@ def search(query, index_path, token_positions, doc_ids):
     for token in query_vector.keys():
         postings[token] = index.get_postings(index_path, token, token_positions)
 
+    #Create document vectors and tdif scores
     doc_vectors, doc_tfidfs = make_doc_vectors_and_tdif(postings, len(doc_ids))
-
 
     #Calculate the cosine similarity between the query and the documents
     doc_cos = heap_selection(doc_vectors, query_vector)
 
+    #Score the documents
     scores = score(doc_cos, doc_tfidfs)
 
     #Rank postings
