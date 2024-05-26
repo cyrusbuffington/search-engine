@@ -21,7 +21,7 @@ def process_json_files(folder_path):
                     yield data
 
 
-def get_page_tokens(page, content_hash):
+def get_page_tokens(page, content_hashes):
     'Returns the text content of a JSON page object'
     tag_weights = {'title': 10, 'h1': 7, 'h2': 6, 'h3': 5, 'h4': 4, 'h5': 3, 'h6': 2, 'p': 1,
                     'a': 1, 'li': 1, 'i':3, 'b':4, 'strong': 4, 'em': 4, 'sub': 1}
@@ -45,12 +45,14 @@ def get_page_tokens(page, content_hash):
             freqs[stemmed_token] += tag_weights[tag.name]
 
     #Hash the content to check for duplicates
-    content = sha256(content.encode()).hexdigest()
+    content_hash = sha256(content.encode()).hexdigest()
 
-    if content in content_hash:
+    
+
+    if content_hash in content_hashes:
         print('Duplicate content detected')
         raise ValueError('Duplicate content')
-    content_hash.add(content)
+    content_hashes.add(content_hash)
 
     return freqs
 
@@ -159,7 +161,7 @@ def build_index(folder_path, threshold):
     inverted_index = defaultdict(list)
     page_counter = 0
 
-    content_hash = set()
+    content_hashes = set()
     universal_tokens = set()
     urls_processed = set()
     doc_ids = []
@@ -176,7 +178,7 @@ def build_index(folder_path, threshold):
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             try:
-                freqs = get_page_tokens(page, content_hash)
+                freqs = get_page_tokens(page, content_hashes)
             except:
                 continue
         
