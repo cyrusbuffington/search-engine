@@ -21,7 +21,7 @@ def process_json_files(folder_path):
                     yield data
 
 
-def get_page_tokens(page, content_hashes):
+def get_page_tokens(soup, page, content_hashes):
     'Returns the text content of a JSON page object'
     tag_weights = {'title': 10, 'h1': 7, 'h2': 6, 'h3': 5, 'h4': 4, 'h5': 3, 'h6': 2, 'p': 1,
                     'a': 1, 'li': 1, 'i':3, 'b':4, 'strong': 4, 'em': 4, 'sub': 1}
@@ -30,7 +30,6 @@ def get_page_tokens(page, content_hashes):
     stemmer = Porter2Stemmer()
     freqs = defaultdict(int)
 
-    soup = BeautifulSoup(page['content'], 'lxml')
     content = ""
 
     for tag in soup.find_all(tag_weights.keys()):
@@ -42,6 +41,7 @@ def get_page_tokens(page, content_hashes):
         for token in tokens:
             token = token.lower()
             stemmed_token = stemmer.stem(token)
+            #Add the token to the frequency dictionary based on term weight
             freqs[stemmed_token] += tag_weights[tag.name]
 
     #Hash the content to check for duplicates
@@ -55,7 +55,6 @@ def get_page_tokens(page, content_hashes):
     content_hashes.add(content_hash)
 
     return freqs
-
 
 
 def remove_fragment(url):
@@ -91,7 +90,9 @@ def get_postings(file_path, token, token_positions):
     with open(file_path, 'r') as f:
         f.seek(token_positions[token])
         line = f.readline().strip()
+        #Get the postings list from the line
         postings = process_index_line(line)[1].split(',')
+        #Create a list of Posting objects from the postings list
         postings = [Posting(int(posting.split(';')[0]), int(posting.split(';')[1]), doc_freq=len(postings)) for posting in postings]
         return postings
 
@@ -152,6 +153,37 @@ def merge_indexes(directory):
     with open(f'data/token_positions.pkl', 'wb') as f:
         pickle.dump(token_positions, f)  #Dump the token positions dictionary to disk
 
+def build_pagerank_graph_with_ids(url_to_ids, pagerank_graph):
+    'Builds the pagerank graph from the url_to_ids and pagerank_graph dictionaries'
+    outgoing_links = defaultdict(int)
+    graph = defaultdict(list)
+    for url, linked_urls in pagerank_graph.items():
+        if url not in url_to_ids:
+            continue
+        for linked_url in linked_urls:
+            if linked_url not in url_to_ids:
+                continue
+            graph[url_to_ids[url]].append(url_to_ids[linked_url])
+        outgoing_links[url_to_ids[url]] = len(linked_urls)
+
+    reverse_graph = defaultdict(list)
+    #Make graph of all pages that link to a page
+    for id, linked_ids in graph.items():
+        for linked_id in linked_ids:
+            reverse_graph[linked_id].append(id)
+    
+    return reverse_graph, outgoing_links
+
+def calculate_pagerank(reverse_graph, outgoing_links, pagerank, d=0.85, max_iter=15):
+    'Calculates the pagerank of each page in the graph'
+    N = len(pagerank)
+    for _ in range(max_iter):
+        for i in range(N):
+            sum_pr = 0
+            for j in reverse_graph[i]:
+                sum_pr += pagerank[j] / outgoing_links[j]
+            pagerank[i] = (1 - d)  + d * sum_pr
+
 
 def build_index(folder_path, threshold):
     'Builds partial indexes and saves them to disk'
@@ -161,28 +193,45 @@ def build_index(folder_path, threshold):
 
     content_hashes = set()
     universal_tokens = set()
-    urls_processed = set()
     doc_ids = []
+
+    #Pagerank attributes
+    url_to_ids = {}
+    pagerank = []
+    pagerank_graph = defaultdict(list)
 
 
     for page in process_json_files(folder_path):
         freqs = defaultdict(int)
 
+        #Remove fragment from URL
         url = remove_fragment(page['url'])
-        if url in urls_processed:
+        if url in url_to_ids:
             continue
         
         #Don't process non html or broken html or duplicate content
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             try:
-                freqs = get_page_tokens(page, content_hashes)
+                soup = BeautifulSoup(page['content'], 'lxml')
+                freqs = get_page_tokens(soup, page, content_hashes)
             except:
                 continue
+
+        #Build sparse graph for pagerank
+        links = soup.find_all('a')
+        for link in links:
+            linked_url = remove_fragment(link.get('href'))
+            pagerank_graph[url].append(linked_url)
+
         
+        #Add the page to the doc_ids list
+        url_to_ids[url] = page_counter
         page_counter += 1
+        #Add the page to the doc_ids list
         doc_ids.append(url)
-        urls_processed.add(url)
+        #Add the pagerank to the pagerank list
+        pagerank.append(1)
 
 
         for token, freq in freqs.items():
@@ -208,9 +257,21 @@ def build_index(folder_path, threshold):
     print(f'Total pages: {page_counter}')
     print(f'Total words: {len(universal_tokens)}')
 
+    #Build pagerank graph
+    print('Building pagerank graph...')
+    reverse_graph, outgoing_links = build_pagerank_graph_with_ids(url_to_ids, pagerank_graph)
+    #Calculate pagerank
+    print('Calculating pagerank...')
+    calculate_pagerank(reverse_graph, outgoing_links, pagerank)
+    #Dump pagerank
+    print('Dumping pagerank...')
+    with open(f'data/pagerank.pkl', 'wb') as f:
+        pickle.dump(pagerank, f)  #Dump the pagerank list to disk
+    print('Pagerank complete!')
+
 
 def main():
-    build_index('developer/DEV', 5000)
+    build_index('developer/DEV/www_informatics_uci_edu', 5000)
     merge_indexes('indexes')
 
 

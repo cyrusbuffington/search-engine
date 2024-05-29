@@ -18,6 +18,7 @@ def tfidf(term_freq, doc_freq, total_docs):
     'Calculates the tfidf score for a term'
     return (1 + math.log(term_freq)) * math.log(total_docs / (doc_freq + 1))
 
+
 def normalize_tfidfs(doc_tfidfs):
     if not doc_tfidfs:
         return doc_tfidfs
@@ -36,7 +37,9 @@ def make_doc_vectors_and_tdif(postings, total_docs):
     for token, posting in postings.items():
         for post in posting:
             tfidf_value = tfidf(post.term_freq, post.doc_freq, total_docs)
+            #Add the tfidf value to the document vector
             doc_vectors[post.doc_id][token] = tfidf_value
+            #Sum the tdif values for each document
             doc_tfidfs[post.doc_id] += tfidf_value 
     
     #Normalize the vectors
@@ -48,7 +51,8 @@ def make_doc_vectors_and_tdif(postings, total_docs):
     
     return doc_vectors, doc_tfidfs
 
-def heap_selection(doc_vectors, query_vector, k=125):
+
+def cos_heap_selection(doc_vectors, query_vector, k=125):
     'Selects the top k documents using a heap'
     heap = []
     for doc_id, doc_vector in doc_vectors.items():
@@ -85,7 +89,7 @@ def search(query, index_path, token_positions, doc_ids):
     'Searches the index for the given query'
     if not query:
         return []
-    start_time = time.time()
+    start_time = time.perf_counter()
     tokenizer = RegexpTokenizer(r'[a-zA-Z0-9]+')  #Matches any sequence of alphanum characters
     stemmer = Porter2Stemmer()
 
@@ -119,8 +123,8 @@ def search(query, index_path, token_positions, doc_ids):
     #Create document vectors and tdif scores
     doc_vectors, doc_tfidfs = make_doc_vectors_and_tdif(postings, len(doc_ids))
 
-    #Calculate the cosine similarity between the query and the documents
-    doc_cos = heap_selection(doc_vectors, query_vector)
+    #Calculate the top k cosine similarities between the query and the documents
+    doc_cos = cos_heap_selection(doc_vectors, query_vector)
 
     #Score the documents
     scores = score(doc_cos, doc_tfidfs)
@@ -128,7 +132,7 @@ def search(query, index_path, token_positions, doc_ids):
     #Rank postings
     ranked_docs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
 
-    end_time = time.time()
+    end_time = time.perf_counter()
     time_taken = end_time - start_time
     print(f'Retreived results in {time_taken} seconds')
     return ([(doc_ids[doc[0]]) for doc in ranked_docs], time_taken)
@@ -140,6 +144,7 @@ def get_query(index_path, token_positions, doc_ids):
     postings = search(query, index_path, token_positions, doc_ids)[0]
     for i, posting in enumerate(postings[:40]):
         print(f'{i + 1} - {posting}')
+
 
 def main():
     #Load the index and doc_ids
