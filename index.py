@@ -304,6 +304,7 @@ def build_index(folder_path, threshold):
     #Calculate pagerank
     print('Calculating pagerank...')
     calculate_pagerank(reverse_graph, outgoing_links, pagerank)
+    pagerank = normalize_pagerank(pagerank)
     #Dump pagerank
     print('Dumping pagerank...')
     with open(f'data/pagerank.pkl', 'wb') as f:
@@ -315,9 +316,6 @@ def build_index(folder_path, threshold):
 def main():
     build_index('developer/DEV/', 5000)
     merge_indexes('indexes')
-
-
-
 
 
 

@@ -163,7 +163,7 @@ def get_query(index_path, token_positions, doc_ids, pagerank):
     'Gets a query from the user and prints search results'
     query =  input('Enter a search query: ')
     postings = search(query, index_path, token_positions, doc_ids, pagerank)[0]
-    for i, posting in enumerate(postings[:40]):
+    for i, posting in enumerate(postings[:10]):
         print(f'{i + 1} - {posting}')
 
 
@@ -173,8 +173,6 @@ def main():
     pagerank = index.load_pickle_file('data/pagerank.pkl')
 
     get_query('merged_index.txt', token_positions, doc_ids, pagerank)
-
-
 
     
 
