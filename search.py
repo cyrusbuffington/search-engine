@@ -30,12 +30,14 @@ def normalize_tfidfs(doc_tfidfs):
     return doc_tfidfs
 
 
-def make_doc_vectors_and_tdif(postings, total_docs):
+def make_doc_vectors_and_tdif(postings, total_docs, top_docs):
     'Creates a vector representation of the documents'
     doc_vectors = defaultdict(default_factory)
     doc_tfidfs = defaultdict(float)
     for token, posting in postings.items():
         for post in posting:
+            if post.doc_id not in top_docs:
+                continue
             tfidf_value = tfidf(post.term_freq, post.doc_freq, total_docs)
             #Add the tfidf value to the document vector
             doc_vectors[post.doc_id][token] = tfidf_value
@@ -52,7 +54,7 @@ def make_doc_vectors_and_tdif(postings, total_docs):
     return doc_vectors, doc_tfidfs
 
 
-def cos_heap_selection(doc_vectors, query_vector, k=125):
+def cos_heap_selection(doc_vectors, query_vector, k=100):
     'Selects the top k documents using a heap'
     heap = []
     for doc_id, doc_vector in doc_vectors.items():
@@ -73,19 +75,37 @@ def cos_heap_selection(doc_vectors, query_vector, k=125):
         doc_cos[heap[i][1]] = heap[i][0]
     return doc_cos
 
+def pagerank_heap_selection(postings, pagerank, k=5000):
+    'Selects the top k documents based on pagerankusing a heap'
+    top_docs = set()
+    heap = []
+    for token, posting in postings.items():
+        for post in posting:
+            doc_id = post.doc_id
+            if doc_id not in top_docs:
+                if len(heap) < k:
+                    heapq.heappush(heap, (pagerank[doc_id], doc_id))
+                elif pagerank[doc_id] > heap[0][0]:
+                    heapq.heappushpop(heap, (pagerank[doc_id], doc_id))
+                
+    for i in range(len(heap)):
+        top_docs.add(heap[i][1])
 
-def score(doc_cos, doc_tfidfs, beta=.15):
+    return top_docs
+
+
+def score(doc_cos, doc_tfidfs, pagerank, beta=.15, alpha = .9):
     'Scores the documents based on the cosine similarity and tdif'
     doc_tfidfs = normalize_tfidfs(doc_tfidfs)
     scores = defaultdict(float)
     #Compute ranking function for each doc
     for doc_id in doc_cos:
-        scores[doc_id] = (beta * doc_tfidfs[doc_id]) + ((1 - beta) * doc_cos[doc_id])
-    
+        scores[doc_id] = alpha * ((beta * doc_tfidfs[doc_id]) + ((1 - beta) * doc_cos[doc_id])) + (1 - alpha) * pagerank[doc_id]
+
     return scores
             
 
-def search(query, index_path, token_positions, doc_ids):
+def search(query, index_path, token_positions, doc_ids, pagerank):
     'Searches the index for the given query'
     if not query:
         return []
@@ -120,14 +140,15 @@ def search(query, index_path, token_positions, doc_ids):
     for token in query_vector.keys():
         postings[token] = index.get_postings(index_path, token, token_positions)
 
+    top_docs = pagerank_heap_selection(postings, pagerank)
     #Create document vectors and tdif scores
-    doc_vectors, doc_tfidfs = make_doc_vectors_and_tdif(postings, len(doc_ids))
+    doc_vectors, doc_tfidfs = make_doc_vectors_and_tdif(postings, len(doc_ids), top_docs)
 
     #Calculate the top k cosine similarities between the query and the documents
     doc_cos = cos_heap_selection(doc_vectors, query_vector)
 
     #Score the documents
-    scores = score(doc_cos, doc_tfidfs)
+    scores = score(doc_cos, doc_tfidfs, pagerank)
 
     #Rank postings
     ranked_docs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
@@ -138,20 +159,24 @@ def search(query, index_path, token_positions, doc_ids):
     return ([(doc_ids[doc[0]]) for doc in ranked_docs], time_taken)
 
 
-def get_query(index_path, token_positions, doc_ids):
+def get_query(index_path, token_positions, doc_ids, pagerank):
     'Gets a query from the user and prints search results'
     query =  input('Enter a search query: ')
-    postings = search(query, index_path, token_positions, doc_ids)[0]
+    postings = search(query, index_path, token_positions, doc_ids, pagerank)[0]
     for i, posting in enumerate(postings[:40]):
         print(f'{i + 1} - {posting}')
 
 
 def main():
-    #Load the index and doc_ids
     token_positions = index.load_pickle_file('data/token_positions.pkl')
     doc_ids = index.load_pickle_file('data/doc_ids.pkl')
+    pagerank = index.load_pickle_file('data/pagerank.pkl')
 
-    get_query('merged_index.txt', token_positions, doc_ids)
+    get_query('merged_index.txt', token_positions, doc_ids, pagerank)
+
+
+
+    
 
 
 if __name__ == '__main__':

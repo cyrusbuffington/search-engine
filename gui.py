@@ -8,6 +8,7 @@ app = Flask(__name__)
 def gui_search():
     token_positions = index.load_pickle_file('data/token_positions.pkl')
     doc_ids = index.load_pickle_file('data/doc_ids.pkl')
+    pagerank = index.load_pickle_file('data/pagerank.pkl')
 
 
     #Get query from text box
@@ -18,7 +19,7 @@ def gui_search():
     postings = []
     if query:
         #Perform the search and return the results
-        postings, time_elapsed = search.search(query, 'merged_index.txt', token_positions, doc_ids)
+        postings, time_elapsed = search.search(query, 'merged_index.txt', token_positions, doc_ids, pagerank)
         result_count = len(postings)
         time_elapsed = round(time_elapsed, 8)
 

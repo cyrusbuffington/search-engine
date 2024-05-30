@@ -3,6 +3,7 @@ import json
 import pickle
 import heapq
 import warnings
+from urllib.parse import urljoin
 from posting import Posting
 from porter2stemmer import Porter2Stemmer
 from nltk.tokenize import RegexpTokenizer
@@ -21,7 +22,12 @@ def process_json_files(folder_path):
                     yield data
 
 
-def get_page_tokens(soup, page, content_hashes):
+def hash_page_content(content):
+    'Hashes the content of a page to check for duplicates'
+    return sha256(content.encode()).hexdigest()
+
+
+def get_page_tokens(soup, content_hashes):
     'Returns the text content of a JSON page object'
     tag_weights = {'title': 10, 'h1': 7, 'h2': 6, 'h3': 5, 'h4': 4, 'h5': 3, 'h6': 2, 'p': 1,
                     'a': 1, 'li': 1, 'i':3, 'b':4, 'strong': 4, 'em': 4, 'sub': 1}
@@ -153,6 +159,16 @@ def merge_indexes(directory):
     with open(f'data/token_positions.pkl', 'wb') as f:
         pickle.dump(token_positions, f)  #Dump the token positions dictionary to disk
 
+
+def relative_to_abolute_url(url, link):
+    'Converts a relative URL to an absolute URL'
+    if link.startswith('//'):
+        link = 'http:' + link
+    elif link.startswith('/'):
+        link = urljoin(url, link)
+    return link
+
+
 def build_pagerank_graph_with_ids(url_to_ids, pagerank_graph):
     'Builds the pagerank graph from the url_to_ids and pagerank_graph dictionaries'
     outgoing_links = defaultdict(int)
@@ -163,6 +179,7 @@ def build_pagerank_graph_with_ids(url_to_ids, pagerank_graph):
         for linked_url in linked_urls:
             if linked_url not in url_to_ids:
                 continue
+
             graph[url_to_ids[url]].append(url_to_ids[linked_url])
         outgoing_links[url_to_ids[url]] = len(linked_urls)
 
@@ -174,7 +191,8 @@ def build_pagerank_graph_with_ids(url_to_ids, pagerank_graph):
     
     return reverse_graph, outgoing_links
 
-def calculate_pagerank(reverse_graph, outgoing_links, pagerank, d=0.85, max_iter=15):
+
+def calculate_pagerank(reverse_graph, outgoing_links, pagerank, d=0.85, max_iter=1000):
     'Calculates the pagerank of each page in the graph'
     N = len(pagerank)
     for _ in range(max_iter):
@@ -184,6 +202,13 @@ def calculate_pagerank(reverse_graph, outgoing_links, pagerank, d=0.85, max_iter
                 sum_pr += pagerank[j] / outgoing_links[j]
             pagerank[i] = (1 - d)  + d * sum_pr
 
+def normalize_pagerank(pagerank):
+    'Normalizes the pagerank values'
+    max_pr = max(pagerank)
+    min_pr = min(pagerank)
+    for i in range(len(pagerank)):
+        pagerank[i] = (pagerank[i] - min_pr) / (max_pr - min_pr)
+    return pagerank
 
 def build_index(folder_path, threshold):
     'Builds partial indexes and saves them to disk'
@@ -214,14 +239,23 @@ def build_index(folder_path, threshold):
             warnings.simplefilter("error")
             try:
                 soup = BeautifulSoup(page['content'], 'lxml')
-                freqs = get_page_tokens(soup, page, content_hashes)
+                freqs = get_page_tokens(soup, content_hashes)
             except:
                 continue
 
         #Build sparse graph for pagerank
         links = soup.find_all('a')
         for link in links:
-            linked_url = remove_fragment(link.get('href'))
+            link = link.get('href')
+            if not link:
+                continue
+            link = link.strip()
+
+            linked_url = remove_fragment(link)
+
+            #Make relative url into absolute url
+            linked_url = relative_to_abolute_url(url, linked_url)
+
             pagerank_graph[url].append(linked_url)
 
         
@@ -260,6 +294,13 @@ def build_index(folder_path, threshold):
     #Build pagerank graph
     print('Building pagerank graph...')
     reverse_graph, outgoing_links = build_pagerank_graph_with_ids(url_to_ids, pagerank_graph)
+
+#DUMP DATA TO CALCULATE RAGERANK LATER
+    with open(f'data/reverse_graph.pkl', 'wb') as f:
+        pickle.dump(reverse_graph, f)
+    with open(f'data/outgoing_links.pkl', 'wb') as f:
+        pickle.dump(outgoing_links, f)
+
     #Calculate pagerank
     print('Calculating pagerank...')
     calculate_pagerank(reverse_graph, outgoing_links, pagerank)
@@ -270,9 +311,14 @@ def build_index(folder_path, threshold):
     print('Pagerank complete!')
 
 
+
 def main():
-    build_index('developer/DEV/www_informatics_uci_edu', 5000)
+    build_index('developer/DEV/', 5000)
     merge_indexes('indexes')
+
+
+
+
 
 
 if __name__ == '__main__':
