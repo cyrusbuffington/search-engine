@@ -98,7 +98,6 @@ def get_page_tokens(soup, content_hashes, url):
     if not is_root_url(url) and root_url in content_hashes:
         for hash in content_hashes[root_url]:
             if similarity(content_hash, hash) >= .97:
-                print(url)
                 raise ValueError('Near duplicate content found')
 
     content_hashes[root_url].add(content_hash)

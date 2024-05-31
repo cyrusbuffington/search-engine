@@ -174,6 +174,7 @@ def main():
     token_positions = index.load_pickle_file('data/token_positions.pkl')
     doc_ids = index.load_pickle_file('data/doc_ids.pkl')
     pagerank = index.load_pickle_file('data/pagerank.pkl')
+    print(len(doc_ids))
 
     get_query('merged_index.txt', token_positions, doc_ids, pagerank)
 
