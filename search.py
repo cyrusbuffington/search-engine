@@ -161,10 +161,13 @@ def search(query, index_path, token_positions, doc_ids, pagerank):
 
 def get_query(index_path, token_positions, doc_ids, pagerank):
     'Gets a query from the user and prints search results'
-    query =  input('Enter a search query: ')
-    postings = search(query, index_path, token_positions, doc_ids, pagerank)[0]
-    for i, posting in enumerate(postings[:10]):
-        print(f'{i + 1} - {posting}')
+    searching = True
+    while searching:
+        query =  input('Enter a search query: ')
+        postings = search(query, index_path, token_positions, doc_ids, pagerank)[0]
+        for i, posting in enumerate(postings[:10]):
+            print(f'{i + 1} - {posting}')
+        searching = input('Do you want to search again? (y/n) ') == 'y'
 
 
 def main():
