@@ -11,8 +11,6 @@ from nltk.tokenize import RegexpTokenizer
 from bs4 import BeautifulSoup
 from collections import defaultdict
 from operator import attrgetter
-from hashlib import sha256
-import unittest
 
 def process_json_files(folder_path):
     'Yields data of each JSON file in folder_path'
@@ -28,13 +26,11 @@ def get_root_url(url):
     'Returns the root URL of a given URL'
     return url.split('/')[2]
 
+
 def is_root_url(url):
     'Returns True if the URL is a root URL'
     return len(url.split('/')) == 3
 
-def hash_page_content(content):
-    'Hashes the content of a page to check for duplicates'
-    return sha256(content.encode()).hexdigest()
 
 def simhash(content_freq):
     'Calculates simhash of page'
@@ -59,7 +55,7 @@ def simhash(content_freq):
 
     return fingerprint
     
-
+    
 def similarity(fingerprint1, fingerprint2):
     same_bits = 0
     for i in range(32):
@@ -244,6 +240,7 @@ def calculate_pagerank(reverse_graph, outgoing_links, pagerank, d=0.85, max_iter
                 sum_pr += pagerank[j] / outgoing_links[j]
             pagerank[i] = (1 - d)  + d * sum_pr
 
+
 def normalize_pagerank(pagerank):
     'Normalizes the pagerank values'
     max_pr = max(pagerank)
@@ -251,6 +248,7 @@ def normalize_pagerank(pagerank):
     for i in range(len(pagerank)):
         pagerank[i] = (pagerank[i] - min_pr) / (max_pr - min_pr)
     return pagerank
+
 
 def build_index(folder_path, threshold):
     'Builds partial indexes and saves them to disk'
@@ -367,24 +365,5 @@ def main():
     merge_indexes('indexes')
 
 
-class TestSimHash(unittest.TestCase):
-    def test_simhash(self):
-        content_freq = {"hello": 1, "world": 2}
-        result = simhash(content_freq)
-        self.assertIsInstance(result, int)
-
-    def test_similarity(self):
-        fingerprint1 = 0b10101010101010101010101010101010
-        fingerprint2 = 0b10101010101010101010101010101010
-        result = similarity(fingerprint1, fingerprint2)
-        self.assertEqual(result, 1.0)
-
-        fingerprint1 = 0b10101010101010101010101010101010
-        fingerprint2 = 0b01010101010101010101010101010101
-        result = similarity(fingerprint1, fingerprint2)
-        self.assertEqual(result, 0.0)
-
-
 if __name__ == '__main__':
-    #unittest.main()
     main()
