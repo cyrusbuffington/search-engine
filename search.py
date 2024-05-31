@@ -54,7 +54,7 @@ def make_doc_vectors_and_tdif(postings, total_docs, top_docs):
     return doc_vectors, doc_tfidfs
 
 
-def cos_heap_selection(doc_vectors, query_vector, k=100):
+def cos_heap_selection(doc_vectors, query_vector, k=105):
     'Selects the top k documents using a heap'
     heap = []
     for doc_id, doc_vector in doc_vectors.items():
@@ -174,8 +174,6 @@ def main():
     token_positions = index.load_pickle_file('data/token_positions.pkl')
     doc_ids = index.load_pickle_file('data/doc_ids.pkl')
     pagerank = index.load_pickle_file('data/pagerank.pkl')
-    print(len(doc_ids))
-
     get_query('merged_index.txt', token_positions, doc_ids, pagerank)
 
     
